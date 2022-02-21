@@ -1,0 +1,7 @@
+package webscrap
+
+
+import {
+	"fmt"
+	
+}
