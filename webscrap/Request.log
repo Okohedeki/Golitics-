@@ -1,0 +1,4 @@
+{"level":"info","msg":"GET Request","parser":"Representative","paylod":null,"time":"2022-02-21T22:53:21-07:00","type":"Request","url":"https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D\u0026pageSize=250\u0026page=1"}
+{"level":"info","msg":"GET Response","parser":"Representative","statusCode":"200","time":"2022-02-21T22:53:22-07:00","type":"Response","url":"https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D\u0026pageSize=250\u0026page=1"}
+{"level":"info","msg":"GET Request","parser":"Representative","paylod":null,"time":"2022-02-21T22:53:28-07:00","type":"Request","url":"https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D\u0026pageSize=250\u0026page=1"}
+{"level":"info","msg":"GET Response","parser":"Representative","statusCode":"200","time":"2022-02-21T22:53:30-07:00","type":"Response","url":"https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D\u0026pageSize=250\u0026page=1"}
