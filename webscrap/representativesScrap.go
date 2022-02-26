@@ -1,25 +1,33 @@
+//http://go-colly.org/docs/examples/coursera_courses/
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/gocolly/colly"
 	log "github.com/sirupsen/logrus"
 )
 
-type RequestLogParams struct {
-	URL    string
-	Method string
-	Parser string
-}
+type Representative struct {
+	name        string 
+	state       string 
+	party       string 
+	yearsServed string 
+	url         string 
 
 func main() {
 	crawl()
 }
 
 func crawl() {
+	//var maxRepr string
 	var baseurl = "https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D&pageSize=250&page=1"
+
+	repInfo := make([]Representative)
 
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -36,6 +44,15 @@ func crawl() {
 		/*colly.MaxDepth(5),*/
 		/*colly.IgnoreRobotsTxt(),*/
 	)
+
+	c.Limit((&colly.LimitRule{
+		Delay:       1 * time.Second,
+		RandomDelay: 1 * time.Second,
+	}))
+
+	infoCollector := c.Clone()
+
+	//stopRepCrawl := false
 
 	/*websiteParser := c.Clone()*/
 
@@ -64,6 +81,48 @@ func crawl() {
 			},
 		).Info("GET Response")
 	})
+
+	infoCollector.OnHTML("ol", func(e *colly.HTMLElement) {
+	
+		log.WithFields(
+			log.Fields{
+				"parser": "Representative",
+				"url":    e.URL.String(),
+			},
+		).Info("Found Rep Table")
+
+		e.ForEach("li.expanded", func(_ int, el *colly.HTMLElement) {
+			fmt.Printf("test")
+			repInfo.name = e.ChildText("span.result-heading")
+			repInfo.Url = e.Attr("href")
+			switch el.ChildText("span.result-item") {
+			case "State:":
+				repInfo.state = el.ChildText("span.result-item")
+			case "Party:":
+				repInfo.party = el.ChildText("span.result-item")
+			case "Served:"
+				repInfo.yearsServed = el.ChildText("span.result-item")
+			}
+
+
+		})
+
+		result, _ := json.MarshalIndent(repInfo, "", "\t")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Print(string(result))
+
+	})
+
+	c.OnHTML("a.next", func(e *colly.HTMLElement) {
+		nextPage := e.Request.AbsoluteURL((e.Attr("href")))
+		c.Visit((nextPage))
+
+	},
+	)
 
 	c.Visit(baseurl)
 
