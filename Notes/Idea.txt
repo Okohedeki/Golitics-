@@ -1,0 +1,5 @@
+Representative data from member.data.gov 
+https://lda.senate.gov/api/redoc/v1/#tag/Contribution-Reports
+bills and sponsors 
+search bills by type or text 
+https://projects.propublica.org/api-docs/congress-api/#data-sources

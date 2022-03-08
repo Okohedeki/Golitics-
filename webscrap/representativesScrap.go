@@ -2,7 +2,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -15,9 +14,14 @@ import (
 type Representative struct {
 	name        string
 	url         string
+	houseSenate string
 	state       string
 	party       string
 	yearsServed string
+}
+
+type InnerData struct {
+	InnerData string
 }
 
 func main() {
@@ -28,7 +32,8 @@ func crawl() {
 	//var maxRepr string
 	var baseurl = "https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D&pageSize=250&page=1"
 
-	repInfo := make([]Representative, 0, 200)
+	//repInfo := make([]Representative, 0, 200)
+	innerDataInfo := make([]InnerData, 0, 200)
 
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -72,12 +77,11 @@ func crawl() {
 		if e.StatusCode == 200 || e.StatusCode == 203 {
 
 			absoluteUrl := e.Request.AbsoluteURL((e.Request.URL.String()))
-			fmt.Println(absoluteUrl)
 			//infoCollector.Visit(absoluteUrl)
 			log.WithFields(
 				log.Fields{
 					"parser":     "Representative",
-					"url":        e.Request.URL.String(),
+					"url":        absoluteUrl,
 					"statusCode": status_code,
 					/*"header":     r.Headers,*/
 					"type": "Response",
@@ -105,25 +109,29 @@ func crawl() {
 			},
 		).Info("Found Rep Table")
 
-		politicianInfo := Representative{
-			name: e.ChildText("span.result-heading"),
-			url:  e.Request.AbsoluteURL(e.Attr("href")),
-		}
+		politicianInfo := Representative{}
+		innerDataStruct := InnerData{}
 
 		e.ForEach("li.expanded", func(_ int, el *colly.HTMLElement) {
 
-			switch el.ChildText("span.result-item") {
-			case "State:":
-				politicianInfo.state = el.ChildText("span.result-item")
-			case "Party:":
-				politicianInfo.party = el.ChildText("span.result-item")
-			case "Served:":
-				politicianInfo.yearsServed = el.ChildText("span.result-item")
-			}
+			politicianInfo.name = el.ChildText("span.result-heading")
+			politicianInfo.url = "congress.gov" + el.ChildAttrs("a", "href")[0]
+
+			data := el.ChildText("span.result-item")
+			innerDataStruct.InnerData = data
+			// switch el.ChildText("span", "result-item") {
+			// case "State:":
+			// 	fmt.Println(el.ChildText("span.result-item"))
+
+			// case "Party:":
+			// 	politicianInfo.party = el.ChildText("div.member-profile.member-image-exists > span.result-item > strong")
+			// case "Served:":
+			// 	politicianInfo.yearsServed = el.ChildText("div.member-profile.member-image-exists > span.result-item > strong")
+			// }
 
 		})
-		repInfo = append(repInfo, politicianInfo)
-		fmt.Println(repInfo)
+		innerDataInfo = append(innerDataInfo, innerDataStruct)
+		//repInfo = append(repInfo, politicianInfo)
 
 	})
 
@@ -146,11 +154,8 @@ func crawl() {
 	})
 
 	c.Visit(baseurl)
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-
-	enc.Encode(repInfo)
-
 	defer file.Close()
+
+	fmt.Println(innerDataInfo)
 
 }
