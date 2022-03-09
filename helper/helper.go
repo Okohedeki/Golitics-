@@ -1,6 +1,6 @@
 package helper
 
-func split(tosplit string, sep rune) []string {
+func DelSplit(tosplit string, sep rune) []string {
 	var fields []string
 
 	last := 0
