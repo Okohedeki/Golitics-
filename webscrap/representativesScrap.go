@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -31,7 +32,7 @@ func main() {
 func crawl() {
 	//var maxRepr string
 	var baseurl = "https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D&pageSize=250&page=1"
-
+	space := regexp.MustCompile(`([^:[A-Za-z])\s+`)
 	//repInfo := make([]Representative, 0, 200)
 	innerDataInfo := make([]InnerData, 0, 200)
 
@@ -118,7 +119,14 @@ func crawl() {
 			politicianInfo.url = "congress.gov" + el.ChildAttrs("a", "href")[0]
 
 			data := el.ChildText("span.result-item")
-			innerDataStruct.InnerData = data
+			dataSpaceRemove := space.ReplaceAllString(data, "|")
+
+			for _, word := range helper.split(dataSpaceRemove, "|") {
+				fmt.Println(word)
+			}
+
+			fmt.Println(dataSpaceRemove)
+			innerDataStruct.InnerData = dataSpaceRemove
 			// switch el.ChildText("span", "result-item") {
 			// case "State:":
 			// 	fmt.Println(el.ChildText("span.result-item"))
@@ -156,6 +164,6 @@ func crawl() {
 	c.Visit(baseurl)
 	defer file.Close()
 
-	fmt.Println(innerDataInfo)
+	//	fmt.Println(innerDataInfo)
 
 }
