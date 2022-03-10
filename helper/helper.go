@@ -5,7 +5,7 @@ func DelSplit(tosplit string, sep rune) []string {
 
 	last := 0
 	for i, c := range tosplit {
-		if c == sep {
+		if c == '|' {
 			// Found the separator, append a slice
 			fields = append(fields, string(tosplit[last:i]))
 			last = i + 1

@@ -2,6 +2,8 @@
 package main
 
 import (
+	helper "GOLITICS/helper"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -13,12 +15,11 @@ import (
 )
 
 type Representative struct {
-	name        string
-	url         string
-	houseSenate string
-	state       string
-	party       string
-	yearsServed string
+	name        string `json:"name"`
+	url         string `json:"url"`
+	yearsServed string `json:"yearsServed"`
+	state       string `json:"state"`
+	party       string `json:"party"`
 }
 
 type InnerData struct {
@@ -32,9 +33,11 @@ func main() {
 func crawl() {
 	//var maxRepr string
 	var baseurl = "https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D&pageSize=250&page=1"
+	var delim = '|'
 	space := regexp.MustCompile(`([^:[A-Za-z])\s+`)
+	politicianInfo := Representative{}
 	//repInfo := make([]Representative, 0, 200)
-	innerDataInfo := make([]InnerData, 0, 200)
+	innerDataInfo := make([]Representative, 0, 200)
 
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -102,16 +105,12 @@ func crawl() {
 	})
 
 	c.OnHTML(".search-column-main.basic-search-results.nav-on", func(e *colly.HTMLElement) {
-		fmt.Println("Test")
 		log.WithFields(
 			log.Fields{
 				"parser": "Representative",
 				"url":    e.Request.URL.String(),
 			},
 		).Info("Found Rep Table")
-
-		politicianInfo := Representative{}
-		innerDataStruct := InnerData{}
 
 		e.ForEach("li.expanded", func(_ int, el *colly.HTMLElement) {
 
@@ -120,26 +119,21 @@ func crawl() {
 
 			data := el.ChildText("span.result-item")
 			dataSpaceRemove := space.ReplaceAllString(data, "|")
+			splitPoliticianInfo := helper.DelSplit(dataSpaceRemove, delim)
 
-			for _, word := range helper.split(dataSpaceRemove, "|") {
-				fmt.Println(word)
+			for i, word := range splitPoliticianInfo {
+				switch word {
+				case "State:":
+					politicianInfo.state = splitPoliticianInfo[i+1]
+				case "Party:":
+					politicianInfo.party = splitPoliticianInfo[i+1]
+				case "Served:":
+					politicianInfo.yearsServed = splitPoliticianInfo[i+1:][0]
+				}
 			}
 
-			fmt.Println(dataSpaceRemove)
-			innerDataStruct.InnerData = dataSpaceRemove
-			// switch el.ChildText("span", "result-item") {
-			// case "State:":
-			// 	fmt.Println(el.ChildText("span.result-item"))
-
-			// case "Party:":
-			// 	politicianInfo.party = el.ChildText("div.member-profile.member-image-exists > span.result-item > strong")
-			// case "Served:":
-			// 	politicianInfo.yearsServed = el.ChildText("div.member-profile.member-image-exists > span.result-item > strong")
-			// }
-
 		})
-		innerDataInfo = append(innerDataInfo, innerDataStruct)
-		//repInfo = append(repInfo, politicianInfo)
+		innerDataInfo = append(innerDataInfo, politicianInfo)
 
 	})
 
@@ -162,8 +156,23 @@ func crawl() {
 	})
 
 	c.Visit(baseurl)
+
+	politicianInfoJson, err := json.Marshal(innerDataInfo)
+	if err != nil {
+		fmt.Println(politicianInfoJson)
+	} else {
+		log.WithFields(
+			log.Fields{
+				"parser": "Representative",
+				"step":   "jsonConversion",
+			},
+		).Warn("Error converting struct to json")
+	}
+
 	defer file.Close()
 
-	//	fmt.Println(innerDataInfo)
+	fmt.Println(politicianInfo)
+	res, _ := json.MarshalIndent(politicianInfo, "", "\t")
+	fmt.Println(string(res))
 
 }
