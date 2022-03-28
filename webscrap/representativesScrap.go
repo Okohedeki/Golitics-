@@ -3,23 +3,25 @@ package main
 
 import (
 	helper "GOLITICS/helper"
-	"encoding/json"
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
-	"time"
+
+	_ "github.com/denisenkom/go-mssqldb"
 
 	"github.com/gocolly/colly"
 	log "github.com/sirupsen/logrus"
 )
 
 type Representative struct {
-	name        string `json:"name"`
-	url         string `json:"url"`
-	yearsServed string `json:"yearsServed"`
-	state       string `json:"state"`
-	party       string `json:"party"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	YearsServed string `json:"yearsServed"`
+	State       string `json:"state"`
+	Party       string `json:"party"`
 }
 
 type InnerData struct {
@@ -34,8 +36,12 @@ func crawl() {
 	//var maxRepr string
 	var baseurl = "https://www.congress.gov/members?q=%7B%22congress%22%3A%22all%22%7D&pageSize=250&page=1"
 	var delim = '|'
-	space := regexp.MustCompile(`([^:[A-Za-z])\s+`)
-	politicianInfo := Representative{}
+
+	tsql := `
+	INSERT INTO Goliticians.dbo.Politicians (Name, URL, YearsServedRaw, State, Party) VALUES (@Name, @URL, @YearsServedRaw, @State, @Party);
+	select isNull(SCOPE_IDENTITY(), -1);`
+
+	space := regexp.MustCompile(`[^:a-zA-Z0-9]\s+`)
 	//repInfo := make([]Representative, 0, 200)
 	innerDataInfo := make([]Representative, 0, 200)
 
@@ -48,19 +54,7 @@ func crawl() {
 		log.Fatalf("Error opening file: %v", err)
 	}
 
-	c := colly.NewCollector(
-	//colly.AllowedDomains("https://www.congress.gov/members"),
-	// colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"),
-	// /*colly.MaxDepth(5),*/
-	// /*colly.IgnoreRobotsTxt(),*/
-	)
-
-	c.Limit((&colly.LimitRule{
-		Delay:       2 * time.Second,
-		RandomDelay: 2 * time.Second,
-	}))
-
-	//infoCollector := c.Clone()
+	c := colly.NewCollector()
 
 	c.OnRequest(func(r *colly.Request) {
 		log.WithFields(
@@ -111,29 +105,33 @@ func crawl() {
 				"url":    e.Request.URL.String(),
 			},
 		).Info("Found Rep Table")
-
+		politicianInfo := Representative{}
 		e.ForEach("li.expanded", func(_ int, el *colly.HTMLElement) {
 
-			politicianInfo.name = el.ChildText("span.result-heading")
-			politicianInfo.url = "congress.gov" + el.ChildAttrs("a", "href")[0]
+			politicianInfo.Name = el.ChildText("span.result-heading")
+			politicianInfo.URL = "congress.gov" + el.ChildAttrs("a", "href")[0]
 
 			data := el.ChildText("span.result-item")
 			dataSpaceRemove := space.ReplaceAllString(data, "|")
+
+			fmt.Println(dataSpaceRemove)
+
 			splitPoliticianInfo := helper.DelSplit(dataSpaceRemove, delim)
 
 			for i, word := range splitPoliticianInfo {
 				switch word {
 				case "State:":
-					politicianInfo.state = splitPoliticianInfo[i+1]
+					politicianInfo.State = splitPoliticianInfo[i+1]
 				case "Party:":
-					politicianInfo.party = splitPoliticianInfo[i+1]
+					politicianInfo.Party = splitPoliticianInfo[i+1]
 				case "Served:":
-					politicianInfo.yearsServed = splitPoliticianInfo[i+1:][0]
+					politicianInfo.YearsServed = splitPoliticianInfo[i+1:][0]
 				}
 			}
 
+			innerDataInfo = append(innerDataInfo, politicianInfo)
+
 		})
-		innerDataInfo = append(innerDataInfo, politicianInfo)
 
 	})
 
@@ -156,23 +154,39 @@ func crawl() {
 	})
 
 	c.Visit(baseurl)
-
-	politicianInfoJson, err := json.Marshal(innerDataInfo)
-	if err != nil {
-		fmt.Println(politicianInfoJson)
-	} else {
-		log.WithFields(
-			log.Fields{
-				"parser": "Representative",
-				"step":   "jsonConversion",
-			},
-		).Warn("Error converting struct to json")
+	db, ctx := helper.ConnectDB()
+	//Need to log and go to next iteration if loop error
+	for _, info := range innerDataInfo {
+		insertRep(tsql, db, ctx, info)
 	}
 
 	defer file.Close()
+	//fmt.Println(innerDataInfo)
 
-	fmt.Println(politicianInfo)
-	res, _ := json.MarshalIndent(politicianInfo, "", "\t")
-	fmt.Println(string(res))
+}
 
+//return newID, nil
+func insertRep(tsql string, db *sql.DB, ctx context.Context, info Representative) {
+	stmt, err := db.Prepare(tsql)
+	if err != nil {
+		//return -1, err
+		fmt.Printf("Error")
+	}
+
+	defer stmt.Close()
+
+	row := stmt.QueryRowContext(
+		ctx,
+		sql.Named("Name", info.Name),
+		sql.Named("URL", info.URL),
+		sql.Named("YearsServedRaw", info.YearsServed),
+		sql.Named("State", info.State),
+		sql.Named("Party", info.Party),
+	)
+	var newID int64
+	err = row.Scan(&newID)
+	if err != nil {
+		//return -1, err
+		fmt.Printf("Error")
+	}
 }
